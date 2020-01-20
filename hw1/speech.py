@@ -29,7 +29,7 @@ def read_files(tarfname):
 	print("-- transforming data and labels")
 	from sklearn.feature_extraction.text import CountVectorizer
 	speech.count_vect = CountVectorizer()
-	if True:
+	if False:
 		speech.count_vect = CountVectorizer(strip_accents='ascii')
 	else:
 		pass
