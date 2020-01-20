@@ -7,11 +7,11 @@ def train_classifier(X, y):
 	Trains a logistic regression on the input data with default parameters.
 	"""
 	from sklearn.linear_model import LogisticRegression
-        # cls = LogisticRegression(random_state=0, penalty='l2', solver='lbfgs', tol=1e-4, max_iter=1000, multi_class='multinomial', C=100.0)
-        # cls = LogisticRegression(solver='lbfgs', tol=1e-4, max_iter=1000, penalty='none', C=1, multi_class='auto')
-        cls = LogisticRegression()
-        cls.fit(X, y)
-        return cls
+	# cls = LogisticRegression(random_state=0, penalty='l2', solver='lbfgs', tol=1e-4, max_iter=1000, multi_class='multinomial', C=100.0)
+	# cls = LogisticRegression(solver='lbfgs', tol=1e-4, max_iter=1000, penalty='none', C=1, multi_class='auto')
+	cls = LogisticRegression()
+	cls.fit(X, y)
+	return cls
 
 def evaluate(X, yt, cls):
 	"""Evaluated a classifier on the given labeled data using accuracy."""
