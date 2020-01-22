@@ -85,7 +85,7 @@ def read_files_params(tarfname, ngram_range=(1,2)):
 	tar.close()
 	return speech
 
-def read_files_TFIDF(tarfname):
+def read_files_TFIDF(tarfname, ngram_range=(1, 2)):
 	"""Read the training and development data from the speech tar file.
 	The returned object contains various fields that store the data, such as:
 
@@ -113,7 +113,7 @@ def read_files_TFIDF(tarfname):
 	print(len(speech.dev_data))
 	print("-- transforming data and labels")
 	from sklearn.feature_extraction.text import TfidfVectorizer
-	speech.count_vect = TfidfVectorizer(ngram_range=(1,2))
+	speech.count_vect = TfidfVectorizer(ngram_range=ngram_range)
 	speech.trainX = speech.count_vect.fit_transform(speech.train_data)
 	speech.devX = speech.count_vect.transform(speech.dev_data)
 	from sklearn import preprocessing
