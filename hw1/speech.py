@@ -10,7 +10,7 @@ def read_files(tarfname):
 
 	The data is also preprocessed for use with scikit-learn, as:
 
-	count_vec: CountVectorizer used to process the data (for reapplication on new data)
+	count_vect: CountVectorizer used to process the data (for reapplication on new data)
 	trainX,devX: array of vectors representing Bags of Words, i.e. documents processed through the vectorizer
 	le: LabelEncoder, i.e. a mapper from string labels to ints (stored for reapplication)
 	target_labels: List of labels (same order as used in le)
@@ -29,6 +29,91 @@ def read_files(tarfname):
 	print("-- transforming data and labels")
 	from sklearn.feature_extraction.text import CountVectorizer
 	speech.count_vect = CountVectorizer()
+	if False:
+		speech.count_vect = CountVectorizer(strip_accents='ascii')
+	else:
+		pass
+	speech.trainX = speech.count_vect.fit_transform(speech.train_data)
+	speech.devX = speech.count_vect.transform(speech.dev_data)
+	from sklearn import preprocessing
+	speech.le = preprocessing.LabelEncoder()
+	speech.le.fit(speech.train_labels)
+	speech.target_labels = speech.le.classes_
+	speech.trainy = speech.le.transform(speech.train_labels)
+	speech.devy = speech.le.transform(speech.dev_labels)
+	tar.close()
+	return speech
+
+def read_files_params(tarfname, ngram_range=(1,2)):
+	"""Read the training and development data from the speech tar file.
+	The returned object contains various fields that store the data, such as:
+
+	train_data,dev_data: array of documents (array of words)
+	train_fnames,dev_fnames: list of filenames of the doccuments (same length as data)
+	train_labels,dev_labels: the true string label for each document (same length as data)
+
+	The data is also preprocessed for use with scikit-learn, as:
+
+	count_vect: CountVectorizer used to process the data (for reapplication on new data)
+	trainX,devX: array of vectors representing Bags of Words, i.e. documents processed through the vectorizer
+	le: LabelEncoder, i.e. a mapper from string labels to ints (stored for reapplication)
+	target_labels: List of labels (same order as used in le)
+	trainy,devy: array of int labels, one for each document
+	"""
+	import tarfile
+	tar = tarfile.open(tarfname, "r:gz")
+	class Data: pass
+	speech = Data()
+	print("-- train data")
+	speech.train_data, speech.train_fnames, speech.train_labels = read_tsv(tar, "train.tsv")
+	print(len(speech.train_data))
+	print("-- dev data")
+	speech.dev_data, speech.dev_fnames, speech.dev_labels = read_tsv(tar, "dev.tsv")
+	print(len(speech.dev_data))
+	print("-- transforming data and labels")
+	from sklearn.feature_extraction.text import CountVectorizer
+	speech.count_vect = CountVectorizer()
+	speech.count_vect = CountVectorizer(ngram_range=ngram_range)
+	speech.trainX = speech.count_vect.fit_transform(speech.train_data)
+	speech.devX = speech.count_vect.transform(speech.dev_data)
+	from sklearn import preprocessing
+	speech.le = preprocessing.LabelEncoder()
+	speech.le.fit(speech.train_labels)
+	speech.target_labels = speech.le.classes_
+	speech.trainy = speech.le.transform(speech.train_labels)
+	speech.devy = speech.le.transform(speech.dev_labels)
+	tar.close()
+	return speech
+
+def read_files_TFIDF(tarfname, ngram_range=(1, 2)):
+	"""Read the training and development data from the speech tar file.
+	The returned object contains various fields that store the data, such as:
+
+	train_data,dev_data: array of documents (array of words)
+	train_fnames,dev_fnames: list of filenames of the doccuments (same length as data)
+	train_labels,dev_labels: the true string label for each document (same length as data)
+
+	The data is also preprocessed for use with scikit-learn, as:
+
+	count_vect: CountVectorizer used to process the data (for reapplication on new data)
+	trainX,devX: array of vectors representing Bags of Words, i.e. documents processed through the vectorizer
+	le: LabelEncoder, i.e. a mapper from string labels to ints (stored for reapplication)
+	target_labels: List of labels (same order as used in le)
+	trainy,devy: array of int labels, one for each document
+	"""
+	import tarfile
+	tar = tarfile.open(tarfname, "r:gz")
+	class Data: pass
+	speech = Data()
+	print("-- train data")
+	speech.train_data, speech.train_fnames, speech.train_labels = read_tsv(tar, "train.tsv")
+	print(len(speech.train_data))
+	print("-- dev data")
+	speech.dev_data, speech.dev_fnames, speech.dev_labels = read_tsv(tar, "dev.tsv")
+	print(len(speech.dev_data))
+	print("-- transforming data and labels")
+	from sklearn.feature_extraction.text import TfidfVectorizer
+	speech.count_vect = TfidfVectorizer(ngram_range=ngram_range)
 	speech.trainX = speech.count_vect.fit_transform(speech.train_data)
 	speech.devX = speech.count_vect.transform(speech.dev_data)
 	from sklearn import preprocessing
