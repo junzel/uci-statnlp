@@ -77,8 +77,8 @@ def read_texts(tarfname, dname):
     dev_txt = unicode(tar.extractfile(dev_mem).read(), errors='replace')
 
     from sklearn.feature_extraction.text import CountVectorizer
-    count_vect = CountVectorizer()
-    count_vect.fit(train_txt.split("\n"))
+    count_vect = CountVectorizer(ngram_range=(2, 2))
+    count_vect.fit(train_txt.split("\n")) # each sentence in the corpus is devided by '\n'
     tokenizer = count_vect.build_tokenizer()
     class Data: pass
     data = Data()
@@ -121,6 +121,27 @@ def learn_unigram(data):
     print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
     return unigram
 
+def learn_bigram(data):
+    """Learns a unigram model from data.train.
+
+    It also evaluates the model on data.dev and data.test, along with generating
+    some sample sentences from the model.
+    """
+    from lm import Bigram
+    bigram = Bigram()
+    bigram.fit_corpus(data.train)
+    print("vocab:", len(bigram.vocab()))
+    # evaluate on train, test, and dev
+    print("train:", bigram.perplexity(data.train))
+    print("dev  :", bigram.perplexity(data.dev))
+    print("test :", bigram.perplexity(data.test))
+    from generator import Sampler
+    sampler = Sampler(bigram)
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    return bigram
+
 def print_table(table, row_names, col_names, latex_file = None):
     """Pretty prints the table given the table, and row and col names.
 
@@ -155,7 +176,7 @@ if __name__ == "__main__":
         print(dname)
         data = read_texts("data/corpora.tar.gz", dname)
         datas.append(data)
-        model = learn_unigram(data)
+        model = learn_bigram(data)
         models.append(model)
     # compute the perplexity of all pairs
     n = len(dnames)

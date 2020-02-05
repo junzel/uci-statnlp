@@ -7,6 +7,7 @@ from __future__ import absolute_import
 import collections
 from math import log
 import sys
+import pdb
 
 # Python 3 backwards compatibility tricks
 if sys.version_info.major > 2:
@@ -53,10 +54,13 @@ class LangModel:
 
     # required, update the model when a sentence is observed
     def fit_sentence(self, sentence): pass
+
     # optional, if there are any post-training steps (such as normalizing probabilities)
     def norm(self): pass
+
     # required, return the log2 of the conditional prob of word, given previous words
     def cond_logprob(self, word, previous, numOOV): pass
+
     # required, the list of words the language model suports (including EOS)
     def vocab(self): pass
 
@@ -66,21 +70,27 @@ class Unigram(LangModel):
         self.lunk_prob = log(unk_prob, 2)
 
     def inc_word(self, w):
+        """Count the number of appearance of each word (macro word matrix)"""
         if w in self.model:
             self.model[w] += 1.0
         else:
             self.model[w] = 1.0
 
     def fit_sentence(self, sentence):
+        """Call inc_word() for a sentence and add 'EOS' to the macro word matrix.
+        Remarkably, there is no 'eos' in the original sentences.
+        """
         for w in sentence:
             self.inc_word(w)
         self.inc_word('END_OF_SENTENCE')
 
     def norm(self):
-        """Normalize and convert to log2-probs."""
+        """Normalize and convert to log2-probs. (Strange definition of 'normalize')"""
+        # total number of words in the corpus
         tot = 0.0
         for word in self.model:
             tot += self.model[word]
+        # denominator for calculation of the probalility
         ltot = log(tot, 2)
         for word in self.model:
             self.model[word] = log(self.model[word], 2) - ltot
@@ -93,3 +103,51 @@ class Unigram(LangModel):
 
     def vocab(self):
         return self.model.keys()
+
+class Bigram(LangModel):
+    def __init__(self, unk_prob=0.0001):
+        self.model = dict()
+        self.lunk_prob = log(unk_prob, 2)
+
+    def inc_word(self, w):
+        """Count the number of appearance of each word (macro word matrix)"""
+        if w in self.model:
+            self.model[w] += 1.0
+        else:
+            self.model[w] = 1.0
+
+    def fit_sentence(self, sentence):
+        """Call inc_word() for a sentence and add 'EOS' to the macro word matrix"""
+        for w in self.combination_gen(sentence, comb=2):
+            self.inc_word(w)
+        self.inc_word('END_OF_SENTENCE')
+
+    def norm(self):
+        """Normalize and convert to log2-probs. (Strange definition of 'normalize')"""
+        # total number of words in the corpus
+        tot = 0.0
+        for word in self.model:
+            tot += self.model[word]
+        # denominator for calculation of the probalility
+        ltot = log(tot, 2)
+        for word in self.model:
+            self.model[word] = log(self.model[word], 2) - ltot
+
+    def cond_logprob(self, word, previous, numOOV):
+        if word in self.model:
+            return self.model[word]
+        else:
+            return self.lunk_prob-log(numOOV, 2)
+
+    def vocab(self):
+        return self.model.keys()
+
+    def combination_gen(self, sentence, comb=2):
+        """Generate all possible combination in a sentence with the length of combination"""
+        output = []
+        for i in range(len(sentence) - comb + 1):
+            tup = []
+            for j in range(comb):
+                tup.append(sentence[i+j])
+            output.append(tuple(tup))
+        return output
