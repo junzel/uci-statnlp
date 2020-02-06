@@ -7,6 +7,8 @@ import random
 from math import log
 import numpy as np
 
+import pdb
+
 class Sampler:
 
     def __init__(self, lm, temp = 1.0):

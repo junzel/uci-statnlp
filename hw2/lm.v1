@@ -34,11 +34,13 @@ class LangModel:
         """
         vocab_set = set(self.vocab())
         words_set  = set([w for s in corpus for w in s])
-        numOOV = len(words_set - vocab_set) # out-of-vocabulary
-        # numOOV = len(vocab_set - words_set) # out-of-vocabulary
-        # assert numOOV != 0
-        # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!", log(numOOV, 2))
-        
+        # numOOV = len(words_set - vocab_set) # out-of-vocabulary
+        numOOV = len(vocab_set - words_set) # out-of-vocabulary
+        if numOOV == 0:
+            # for w in words_set:
+            #     if not w in vocab_set:
+            #         print(w)
+            pdb.set_trace()
         return pow(2.0, self.entropy(corpus, numOOV))
 
     def entropy(self, corpus, numOOV):
@@ -46,22 +48,13 @@ class LangModel:
         sum_logprob = 0.0
         for s in corpus:
             num_words += len(s) + 1 # for EOS
-            # try:
-            #     if numOOV < 20065:
-            #         print(self.logprob_sentence(s, numOOV))
-            # except:
-            #     print(numOOV)
-            #     pdb.set_trace()
             sum_logprob += self.logprob_sentence(s, numOOV)
         return -(1.0/num_words)*(sum_logprob)
 
     def logprob_sentence(self, sentence, numOOV):
         p = 0.0
         for i in xrange(len(sentence)):
-            try:
-                p += self.cond_logprob(sentence[i], sentence[:i], numOOV)
-            except:
-                pdb.set_trace()
+            p += self.cond_logprob(sentence[i], sentence[:i], numOOV)
         p += self.cond_logprob('END_OF_SENTENCE', sentence, numOOV)
         return p
 
@@ -112,8 +105,7 @@ class Unigram(LangModel):
         if word in self.model:
             return self.model[word]
         else:
-            if numOOV == 0:
-                pdb.set_trace()
+            pdb.set_trace()
             return self.lunk_prob-log(numOOV, 2)
 
     def vocab(self):
@@ -122,97 +114,81 @@ class Unigram(LangModel):
 class Bigram(LangModel):
     def __init__(self, unk_prob=0.0001):
         self.model = dict()
-        self.unigram_model = dict()
+        # self.vocabulary = []
         self.lunk_prob = log(unk_prob, 2)
         self.very_small_value = 0.0001
 
     def inc_word_mat(self, token):
         """Count the number of appearance of each word (macro word matrix)"""
-        if token in self.model:
-            self.model[token] += 1.0
+        if token[0] in self.model:
+            if token[1] in self.model[token[0]]:
+                self.model[token[0]][token[1]] += 1.0
+            else:
+                self.model[token[0]][token[1]] = 1.0
         else:
-            self.model[token] = 1.0
-
-    def inc_word(self, w):
-        """Count the number of appearance of each word (macro word matrix)"""
-        if w in self.model:
-            self.unigram_model[w] += 1.0
-        else:
-            self.unigram_model[w] = 1.0
+            self.model[token[0]] = {token[0]: self.very_small_value, token[1]: 1.0}
 
     def fit_sentence(self, sentence):
         """Call inc_word() for a sentence and add 'EOS' to the macro word matrix
         Loop through all the possible combination of the bigram"""
         for token in self.combination_gen(sentence, comb=2):
             self.inc_word_mat(token)
-        for w in sentence:
-            self.inc_word(w)
-        self.inc_word('END_OF_SENTENCE')
 
     def norm(self):
         """Normalize and convert to log2-probs. (Strange definition of 'normalize')""" 
-        # # add EOS to the row-keys
-        # v = list(self.vocab())
-        # for word in v:
-        #     if 'END_OF_SENTENCE' in self.model.keys():
-        #         self.model['END_OF_SENTENCE'][word] = self.very_small_value
-        #     else:
-        #         self.model['END_OF_SENTENCE'] = {word: self.very_small_value}
+        # add EOS to the row-keys
+        v = list(self.vocab())
+        for word in v:
+            if 'END_OF_SENTENCE' in self.model.keys():
+                self.model['END_OF_SENTENCE'][word] = self.very_small_value
+            else:
+                self.model['END_OF_SENTENCE'] = {word: self.very_small_value}
+            # for w in v:
+            #     if not w in self.model[word].keys():
+            #         self.model[word][w] = self.very_small_value
 
-        for key in self.model.keys():
-            denominator = self.unigram_model[key[0]]
-            l_denom = log(denominator, 2)
-            self.model[key] = log(self.model[key], 2) - l_denom
+        for word in self.model:
+            tot = self.denominator(self.model, word)
+            ltot = log(tot, 2)
+            for key in self.model[word].keys():
+                self.model[word][key] = log(self.model[word][key], 2) - ltot
 
     def cond_logprob(self, word, previous, numOOV):
-        # assert numOOV != 0, "numOOV == 0!"
-        # if numOOV == 0:
-        #     pdb.set_trace()
-        if previous == []:
+        if word in self.model:
+            if previous == []:
+                previous = ['START_OF_SENTENCE']
             try:
-                return self.lunk_prob-log(numOOV, 2)
-            except:
-                return self.lunk_prob-log(1, 2)
-        if (previous[-1], word) in self.model:
-            return self.model[(previous[-1], word)]
+                return self.model[previous[-1]][word]
+            except KeyError:
+                try:
+                    return self.lunk_prob
+                except:
+                    pdb.set_trace()
         else:
-            try:
-                return self.lunk_prob-log(numOOV, 2)
-            except:
-                return self.lunk_prob-log(1, 2)
+            # pdb.set_trace()
+            return self.lunk_prob-log(numOOV, 2)
 
     def vocab(self):
-        return self.unigram_model.keys()
+        return self.model.keys()
 
     def combination_gen(self, sentence, comb=2):
         """Generate all possible combination in a sentence with the length of combination"""
-        # output = []
-        # for i in range(-1 , len(sentence) + 2 - comb): # [len(sentence + 2) + 2 - comb + 1] iterations
-        #     tup = []
-        #     if i < 0:
-        #         tup.append('START_OF_SENTENCE')
-        #         for j in range(1, comb, 1):
-        #             if i+j < len(sentence):
-        #                 tup.append(sentence[i+j])
-        #             else: # There can't be two steps exceeds the length of the sentence
-        #                 tup.append('END_OF_SENTENCE')
-        #     else:
-        #         for j in range(comb):
-        #             if i+j < len(sentence):
-        #                 tup.append(sentence[i+j])
-        #             else:
-        #                 tup.append('END_OF_SENTENCE')
-        #     output.append(tuple(tup))
-        # return output
-
         output = []
-        for i in range(len(sentence) + 2 - comb + 1): # [len(sentence + 2) + 2 - comb + 1] iterations
+        for i in range(-1 , len(sentence) + 2 - comb): # [len(sentence + 2) + 2 - comb + 1] iterations
             tup = []
-            for j in range(comb):
-                if i+j < len(sentence):
-                    tup.append(sentence[i+j])
-                else:
-                    tup.append('END_OF_SENTENCE')
+            if i < 0:
+                tup.append('START_OF_SENTENCE')
+                for j in range(1, comb, 1):
+                    if i+j < len(sentence):
+                        tup.append(sentence[i+j])
+                    else: # There can't be two steps exceeds the length of the sentence
+                        tup.append('END_OF_SENTENCE')
+            else:
+                for j in range(comb):
+                    if i+j < len(sentence):
+                        tup.append(sentence[i+j])
+                    else:
+                        tup.append('END_OF_SENTENCE')
             output.append(tuple(tup))
         return output
 
