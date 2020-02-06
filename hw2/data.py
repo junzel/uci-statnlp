@@ -176,6 +176,7 @@ if __name__ == "__main__":
         print(dname)
         data = read_texts("data/corpora.tar.gz", dname)
         datas.append(data)
+        print('!!!!!---', dname, '---!!!!!')
         model = learn_bigram(data)
         models.append(model)
     # compute the perplexity of all pairs
