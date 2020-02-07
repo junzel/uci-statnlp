@@ -215,7 +215,7 @@ class Bigram(LangModel):
             total += model[word][key]
         return total
 
-class Ngram(LangModel):
+class Ngram_baseline(LangModel):
     def __init__(self, comb=2, unk_prob=0.0001):
         self.model = dict()
         self.unigram_model = dict()
@@ -330,3 +330,176 @@ class Ngram(LangModel):
         for key in model[word].keys():
             total += model[word][key]
         return total
+
+class Ngram(LangModel):
+    def __init__(self, comb=2, unk_prob=0.0001):
+        self.model = dict()
+        self.trigram_model = dict()
+        self.unigram_model = dict()
+        self.bigram_model=dict()
+        self.temp = dict()
+        self.lunk_prob = log(unk_prob, 2)
+        self.lamb = 1.0 # for laplace smoothing
+        self.comb = comb
+        self.gamma = 2.0
+
+        self.smoothing = False
+
+    def inc_word_mat_bi(self, token):
+        """"""
+        if token in self.bigram_model:
+            self.bigram_model[token] += 1.0
+        else:
+            self.bigram_model[token] = 1.0
+
+    def inc_word_mat(self, token):
+        """Count the number of appearance of each word (macro word matrix)"""
+        if token in self.trigram_model:
+            self.trigram_model[token] += 1.0
+        else:
+            self.trigram_model[token] = 1.0
+
+    def inc_word(self, w):
+        """Count the number of appearance of each word (macro word matrix)"""
+        if w in self.unigram_model:
+            self.unigram_model[w] += 1.0
+        else:
+            self.unigram_model[w] = 1.0
+
+    def fit_sentence(self, sentence):
+        """Call inc_word() for a sentence and add 'EOS' to the macro word matrix
+        Loop through all the possible combination of the bigram"""
+        self.inc_word('START_OF_SENTENCE')
+        self.inc_word_mat_bi(('START_OF_SENTENCE', 'START_OF_SENTENCE'))
+        for token in self.combination_gen(sentence, comb=self.comb):
+            self.inc_word_mat(token)
+            # self.inc_word_mat_bi(token[:self.comb])
+        for w in sentence:
+            self.inc_word(w)
+        for token in self.combination_gen(sentence, comb=2):
+            self.inc_word_mat_bi(token)
+        self.inc_word('END_OF_SENTENCE')
+        self.inc_word_mat_bi(('END_OF_SENTENCE', 'END_OF_SENTENCE'))
+
+    def norm(self):
+        """Normalize and convert to log2-probs. (Strange definition of 'normalize')"""
+        # max = (None, 0)
+        # for key in self.model.keys():
+        #     if key != ('END_OF_SENTENCE', 'END_OF_SENTENCE'):
+        #         if self.model[key] > max[1]:
+        #             max = (key, self.model[key])
+        # print(max)
+
+        self.deal_unk()
+        # pdb.set_trace()
+
+        if self.comb == 2:
+            for key in self.model.keys():
+                # laplace smoothing
+                if self.smoothing:
+                    numerator = self.model[key] + self.lamb
+                    denominator = self.unigram_model[key[0]] + self.lamb * len(self.vocab())
+                else:
+                    numerator = self.model[key]
+                    denominator = self.unigram_model[key[0]]
+                l_numer = log(numerator, 2)
+                l_denom = log(denominator, 2)
+                self.model[key] = l_numer - l_denom
+        elif self.comb == 3:
+            for key in self.model.keys():
+                if self.smoothing:
+                    numerator = self.model[key] + self.lamb
+                    denominator = self.bigram_model[key[:self.comb-1]] + self.lamb * len(self.vocab())
+                else:
+                    numerator = self.model[key]
+                    denominator = self.bigram_model[key[:self.comb-1]]
+                l_numer = log(numerator, 2)
+                l_denom = log(denominator, 2)
+                self.model[key] = l_numer - l_denom
+        else:
+            print("Unavailable ngram!")
+            exit()
+
+    def cond_logprob(self, word, previous, numOOV):
+        # assert numOOV != 0, "numOOV == 0!"
+        # if numOOV == 0:
+        #     pdb.set_trace()
+        # pdb.set_trace()
+        if len(previous) < self.comb-1:
+            # if previous == [] and word == 'START_OF_SENTENCE':
+            #     pdb.set_trace()
+            for _ in range(self.comb - 1 - len(previous)):
+                previous = ['START_OF_SENTENCE'] + previous
+            cond = previous
+        elif len(previous) == self.comb-1:
+            cond = previous
+        else:
+            cond = tuple([x for x in previous[-self.comb+1:len(previous)]])
+        if tuple(list(cond) + [word]) in self.model:
+            return self.model[tuple(list(cond) + [word])]
+        else:
+            try:
+                return self.lunk_prob-log(numOOV, 2)
+            except:
+                # pdb.set_trace()
+                return self.lunk_prob-log(1, 2)
+
+    def vocab(self):
+        return self.unigram_model.keys()
+        # return set(self.unigram_model.keys()) - set(['START_OF_SENTENCE', 'END_OF_SENTENCE'])
+
+    def combination_gen(self, sentence, comb=3):
+        """Generate all possible combination in a sentence with the length of combination"""
+        output = []
+        for i in range(-comb+1, len(sentence), 1): # [len(sentence) + 2 - comb + 1] iterations
+            tup = []
+            for j in range(comb):
+                if i+j < 0:
+                    tup.append('START_OF_SENTENCE')
+                elif i+j < len(sentence):
+                    tup.append(sentence[i+j])
+                else:
+                    tup.append('END_OF_SENTENCE')
+            output.append(tuple(tup))
+        return output
+
+    def deal_unk(self):
+        """"""
+        if self.comb == 3:
+            # rare_trigrams = []
+            for token in self.trigram_model.keys():
+                tup = []
+                for i in range(self.comb):
+                    if self.unigram_model[token[i]] < self.gamma:
+                        tup.append('UNK')
+                    else:
+                        tup.append(token[i])
+                if 'UNK' in tup:
+                    # rare_trigrams.append(token)
+                    if tuple(tup) in self.temp:
+                        self.temp[tuple(tup)] = [self.temp.get(tuple(tup))[0] + [token], self.temp.get(tuple(tup))[1] + self.trigram_model.get(token)]
+                    else:
+                        self.temp[tuple(tup)] = [[token], self.trigram_model.get(token)]
+            for token in self.temp.keys():
+                for rare_tri in self.temp[token][0]:
+                    self.trigram_model[rare_tri] = self.temp.get(token)[1]
+
+            self.temp = dict()
+            for token in self.bigram_model.keys():
+                tup = []
+                for i in range(self.comb - 1):
+                    if self.unigram_model[token[i]] < self.gamma:
+                        tup.append('UNK')
+                    else:
+                        tup.append(token[i])
+                if 'UNK' in tup:
+                    if tuple(tup) in self.temp:
+                        self.temp[tuple(tup)] = [self.temp.get(tuple(tup))[0] + [token], self.temp.get(tuple(tup))[1] + self.bigram_model.get(token)]
+                    else:
+                        self.temp[tuple(tup)] = [[token], self.bigram_model.get(token)]
+            for token in self.temp.keys():
+                for rare_bi in self.temp[token][0]:
+                    self.bigram_model[rare_bi] = self.temp.get(token)[1]
+
+            self.model = self.trigram_model.copy()
+
