@@ -142,6 +142,27 @@ def learn_bigram(data):
     print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
     return bigram
 
+def learn_ngram(data):
+    """Learns a unigram model from data.train.
+
+    It also evaluates the model on data.dev and data.test, along with generating
+    some sample sentences from the model.
+    """
+    from lm import Ngram
+    ngram = Ngram(comb=3)
+    ngram.fit_corpus(data.train)
+    print("vocab:", len(ngram.vocab()))
+    # evaluate on train, test, and dev
+    print("train:", ngram.perplexity(data.train))
+    print("dev  :", ngram.perplexity(data.dev))
+    print("test :", ngram.perplexity(data.test))
+    from generator import Sampler
+    sampler = Sampler(ngram)
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    return ngram
+
 def print_table(table, row_names, col_names, latex_file = None):
     """Pretty prints the table given the table, and row and col names.
 
@@ -177,7 +198,7 @@ if __name__ == "__main__":
         data = read_texts("data/corpora.tar.gz", dname)
         datas.append(data)
         print('!!!!!---', dname, '---!!!!!')
-        model = learn_bigram(data)
+        model = learn_ngram(data)
         models.append(model)
     # compute the perplexity of all pairs
     n = len(dnames)

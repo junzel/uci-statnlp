@@ -35,9 +35,6 @@ class LangModel:
         vocab_set = set(self.vocab())
         words_set  = set([w for s in corpus for w in s])
         numOOV = len(words_set - vocab_set) # out-of-vocabulary
-        # numOOV = len(vocab_set - words_set) # out-of-vocabulary
-        # assert numOOV != 0
-        # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!", log(numOOV, 2))
         
         return pow(2.0, self.entropy(corpus, numOOV))
 
@@ -112,8 +109,6 @@ class Unigram(LangModel):
         if word in self.model:
             return self.model[word]
         else:
-            if numOOV == 0:
-                pdb.set_trace()
             return self.lunk_prob-log(numOOV, 2)
 
     def vocab(self):
@@ -135,7 +130,7 @@ class Bigram(LangModel):
 
     def inc_word(self, w):
         """Count the number of appearance of each word (macro word matrix)"""
-        if w in self.model:
+        if w in self.unigram_model:
             self.unigram_model[w] += 1.0
         else:
             self.unigram_model[w] = 1.0
@@ -143,6 +138,8 @@ class Bigram(LangModel):
     def fit_sentence(self, sentence):
         """Call inc_word() for a sentence and add 'EOS' to the macro word matrix
         Loop through all the possible combination of the bigram"""
+        self.inc_word('START_OF_SENTENCE')
+        # self.inc_word_mat(('START_OF_SENTENCE', 'START_OF_SENTENCE'))
         for token in self.combination_gen(sentence, comb=2):
             self.inc_word_mat(token)
         for w in sentence:
@@ -169,16 +166,14 @@ class Bigram(LangModel):
         # if numOOV == 0:
         #     pdb.set_trace()
         if previous == []:
-            try:
-                return self.lunk_prob-log(numOOV, 2)
-            except:
-                return self.lunk_prob-log(1, 2)
+            previous = ['START_OF_SENTENCE']
         if (previous[-1], word) in self.model:
             return self.model[(previous[-1], word)]
         else:
             try:
                 return self.lunk_prob-log(numOOV, 2)
             except:
+                # pdb.set_trace()
                 return self.lunk_prob-log(1, 2)
 
     def vocab(self):
@@ -186,30 +181,143 @@ class Bigram(LangModel):
 
     def combination_gen(self, sentence, comb=2):
         """Generate all possible combination in a sentence with the length of combination"""
+
+        # With SOS
+        output = []
+        for i in range(-1 , len(sentence) + 2 - comb): # [len(sentence + 2) + 2 - comb + 1] iterations
+            tup = []
+            for j in range(comb):
+                if i+j < 0:
+                    tup.append('START_OF_SENTENCE')
+                elif i+j < len(sentence):
+                    tup.append(sentence[i+j])
+                else: # There can't be two steps exceeds the length of the sentence
+                    tup.append('END_OF_SENTENCE')
+            output.append(tuple(tup))
+        return output
+
+        # # Without SOS
         # output = []
-        # for i in range(-1 , len(sentence) + 2 - comb): # [len(sentence + 2) + 2 - comb + 1] iterations
+        # for i in range(len(sentence) + 2 - comb + 1): # [len(sentence + 2) + 2 - comb + 1] iterations
         #     tup = []
-        #     if i < 0:
-        #         tup.append('START_OF_SENTENCE')
-        #         for j in range(1, comb, 1):
-        #             if i+j < len(sentence):
-        #                 tup.append(sentence[i+j])
-        #             else: # There can't be two steps exceeds the length of the sentence
-        #                 tup.append('END_OF_SENTENCE')
-        #     else:
-        #         for j in range(comb):
-        #             if i+j < len(sentence):
-        #                 tup.append(sentence[i+j])
-        #             else:
-        #                 tup.append('END_OF_SENTENCE')
+        #     for j in range(comb):
+        #         if i+j < len(sentence):
+        #             tup.append(sentence[i+j])
+        #         else:
+        #             tup.append('END_OF_SENTENCE')
         #     output.append(tuple(tup))
         # return output
 
+    def denominator(self, model, word):
+        """Calcualte the total number of the apperance of a denominator word in conditional prob"""
+        total = 0.0
+        for key in model[word].keys():
+            total += model[word][key]
+        return total
+
+class Ngram(LangModel):
+    def __init__(self, comb=2, unk_prob=0.0001):
+        self.model = dict()
+        self.unigram_model = dict()
+        self.bigram_model=dict()
+        self.lunk_prob = log(unk_prob, 2)
+        self.very_small_value = 0.0001
+        self.comb = comb
+
+    def inc_word_mat_bi(self, token):
+        """"""
+        if token in self.bigram_model:
+            self.bigram_model[token] += 1.0
+        else:
+            self.bigram_model[token] = 1.0
+
+    def inc_word_mat(self, token):
+        """Count the number of appearance of each word (macro word matrix)"""
+        if token in self.model:
+            self.model[token] += 1.0
+        else:
+            self.model[token] = 1.0
+
+    def inc_word(self, w):
+        """Count the number of appearance of each word (macro word matrix)"""
+        if w in self.unigram_model:
+            self.unigram_model[w] += 1.0
+        else:
+            self.unigram_model[w] = 1.0
+
+    def fit_sentence(self, sentence):
+        """Call inc_word() for a sentence and add 'EOS' to the macro word matrix
+        Loop through all the possible combination of the bigram"""
+        self.inc_word('START_OF_SENTENCE')
+        self.inc_word_mat_bi(('START_OF_SENTENCE', 'START_OF_SENTENCE'))
+        for token in self.combination_gen(sentence, comb=self.comb):
+            self.inc_word_mat(token)
+            # self.inc_word_mat_bi(token[:self.comb])
+        for w in sentence:
+            self.inc_word(w)
+        for token in self.combination_gen(sentence, comb=2):
+            self.inc_word_mat_bi(token)
+        self.inc_word('END_OF_SENTENCE')
+        self.inc_word_mat_bi(('END_OF_SENTENCE', 'END_OF_SENTENCE'))
+
+    def norm(self):
+        """Normalize and convert to log2-probs. (Strange definition of 'normalize')"""
+        # pdb.set_trace()
+        # for key in self.unigram_model.keys():
+        #     if self.unigram_model[key] > 2:
+        #         print(key, self.unigram_model[key])
+        if self.comb == 2:
+            for key in self.model.keys():
+                denominator = self.unigram_model[key[0]]
+                l_denom = log(denominator, 2)
+                self.model[key] = log(self.model[key], 2) - l_denom
+        elif self.comb == 3:
+            for key in self.model.keys():
+                # print(key[:self.comb-1])
+                denominator = self.bigram_model[key[:self.comb-1]]
+                l_denom = log(denominator, 2)
+                self.model[key] = log(self.model[key], 2) - l_denom
+        else:
+            print("Unavailable ngram!")
+            exit()
+
+    def cond_logprob(self, word, previous, numOOV):
+        # assert numOOV != 0, "numOOV == 0!"
+        # if numOOV == 0:
+        #     pdb.set_trace()
+        # pdb.set_trace()
+        if len(previous) < self.comb-1:
+            # if previous == [] and word == 'START_OF_SENTENCE':
+            #     pdb.set_trace()
+            for _ in range(self.comb - 1 - len(previous)):
+                previous = ['START_OF_SENTENCE'] + previous
+            cond = previous
+        elif len(previous) == self.comb-1:
+            cond = previous
+        else:
+            cond = tuple([x for x in previous[-self.comb+1:len(previous)]])
+        if tuple(list(cond) + [word]) in self.model:
+            return self.model[tuple(list(cond) + [word])]
+        else:
+            try:
+                return self.lunk_prob-log(numOOV, 2)
+            except:
+                pdb.set_trace()
+                # return self.lunk_prob-log(1, 2)
+
+    def vocab(self):
+        return self.unigram_model.keys()
+        # return set(self.unigram_model.keys()) - set(['START_OF_SENTENCE', 'END_OF_SENTENCE'])
+
+    def combination_gen(self, sentence, comb=3):
+        """Generate all possible combination in a sentence with the length of combination"""
         output = []
-        for i in range(len(sentence) + 2 - comb + 1): # [len(sentence + 2) + 2 - comb + 1] iterations
+        for i in range(-comb+1, len(sentence)+comb-2, 1): # [len(sentence) + 2 - comb + 1] iterations
             tup = []
             for j in range(comb):
-                if i+j < len(sentence):
+                if i+j < 0:
+                    tup.append('START_OF_SENTENCE')
+                elif i+j < len(sentence):
                     tup.append(sentence[i+j])
                 else:
                     tup.append('END_OF_SENTENCE')

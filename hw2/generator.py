@@ -53,7 +53,10 @@ class Sampler:
         for w in self.lm.vocab():
             if not incl_eos and w == "END_OF_SENTENCE":
                 continue
-            lp = self.lm.cond_logprob(w, prev, 0)
+            try:
+                lp = self.lm.cond_logprob(w, prev, 0)
+            except:
+                pdb.set_trace()
             wps.append([w, lp/self.temp])
             tot = np.logaddexp2(lp/self.temp, tot)
         p = self.rnd.random()
@@ -68,7 +71,9 @@ class Sampler:
 
 if __name__ == "__main__":
     from lm import Unigram
-    unigram = Unigram()
+    from lm import Bigram
+    from lm import Ngram
+    unigram = Ngram()
     corpus = [
         [ "sam", "i", "am" ]
     ]
