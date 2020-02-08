@@ -53,10 +53,7 @@ class Sampler:
         for w in self.lm.vocab():
             if not incl_eos and w == "END_OF_SENTENCE":
                 continue
-            try:
-                lp = self.lm.cond_logprob(w, prev, 0)
-            except:
-                pdb.set_trace()
+            lp = self.lm.cond_logprob(w, prev, 0)
             wps.append([w, lp/self.temp])
             tot = np.logaddexp2(lp/self.temp, tot)
         p = self.rnd.random()

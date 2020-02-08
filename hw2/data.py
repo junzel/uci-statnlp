@@ -137,9 +137,9 @@ def learn_bigram(data):
     print("test :", bigram.perplexity(data.test))
     from generator import Sampler
     sampler = Sampler(bigram)
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['START_OF_SENTENCE'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['START_OF_SENTENCE'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['START_OF_SENTENCE'])))
     return bigram
 
 def learn_ngram(data):
@@ -149,6 +149,7 @@ def learn_ngram(data):
     some sample sentences from the model.
     """
     from lm import Ngram
+    from lm import Ngram_baseline
     ngram = Ngram(comb=3)
     ngram.fit_corpus(data.train)
     print("vocab:", len(ngram.vocab()))
