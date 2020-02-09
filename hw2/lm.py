@@ -8,6 +8,7 @@ import collections
 from math import log
 import sys
 import pdb
+import time
 
 # Python 3 backwards compatibility tricks
 if sys.version_info.major > 2:
@@ -331,10 +332,6 @@ class Ngram_baseline(LangModel):
             total += model[word][key]
         return total
 
-class Ngram_my(LangModel):
-    def __init__(self, comb=2, unk_prob=0.0001):
-        self.model = dict()
-        self.trigram_model = dict()
         self.unigram_model = dict()
         self.bigram_model=dict()
         self.temp = dict()
@@ -512,7 +509,7 @@ class Ngram(LangModel):
         self.unigram_model = dict()
         self.unk_model = dict()
         # self.bigram_model=dict()
-        # self.temp = dict()
+        self.temp = dict()
         self.rare_words = list()
         self.lunk_prob = log(unk_prob, 2)
         self.lamb = 1.0 # for laplace smoothing
@@ -530,32 +527,57 @@ class Ngram(LangModel):
         Assumes the model uses an EOS symbol at the end of each sentence.
         """
         if self.unk:
-            corpus = ['UNK' if x in self.rare_words else x for x in corpus]
+            corpus = [list(map(lambda x: 'UNK' if x in self.rare_words else x, s)) for s in corpus]
         vocab_set = set(self.vocab())
         words_set  = set([w for s in corpus for w in s])
         numOOV = len(words_set - vocab_set) # out-of-vocabulary
         
         return pow(2.0, self.entropy(corpus, numOOV))
 
+    def replace(self, s):
+        # return ['UNK' if w in self.rare_words else w for w in s]
+        new_s = []
+        for w in s:
+            if w in self.rare_words:
+                new_s.append('UNK')
+            else:
+                new_s.append(w)
+        return new_s
+
     def fit_corpus(self, corpus):
         """Learn the language model for the whole corpus.
 
         The corpus consists of a list of sentences."""
-        import time
-        start_time = time.time()
-        if self.unk:
-            corpus = ['UNK' if x in self.rare_words else x for x in s for s in corpus]
-        print("Time for replace UNK in corpus:", time.time() - start_time, "sec")
+        
         self.build_unigram(corpus)
         self.find_rare_words()
-        pdb.set_trace()
+        start_time = time.time()
+        if self.unk:
+            # new_corpus = []
+            # count = 0
+            start_time = time.time()
+            corpus = [list(map(lambda x: 'UNK' if x in self.rare_words else x, s)) for s in corpus]
+
+            # for s in corpus:
+            #     count += 1
+            #     new_s = ['UNK' if w in self.rare_words else w for w in s]
+            #     new_corpus.append(new_s)
+            #     print(count, '/', len(corpus), end='\r')
+            # corpus = new_corpus
+            print("Time for replace UNK in corpus:", time.time() - start_time, "sec")
+        self.unigram_model = dict()
+        self.build_unigram(corpus)
+        self.vocab_cache = self.vocab()
         s_count = 0
         for s in corpus:
             if self.unk:
                 self.deal_unk(s)
+                self.temp = dict(self.unk_model)
             else:
                 self.fit_sentence(s)
+                self.temp = dict(self.model)
             s_count += 1
+        
         self.norm()
 
     def inc_word_mat(self, token):
@@ -617,14 +639,16 @@ class Ngram(LangModel):
         # The only part should work for now
         elif self.comb == 3:
             if self.unk:
+                pdb.set_trace()
                 for bigram in self.unk_model.keys():
+                    denominator = self.denominator_gen(self.unk_model[bigram])
                     for w in self.unk_model[bigram].keys():
                         if self.smoothing:
                             numerator = self.unk_model[bigram][w] + self.lamb
-                            denominator = self.denominator_gen(self.unk_model[bigram]) + self.lamb * self.vocab_size
+                            denominator =  denominator + self.lamb * self.vocab_size
                         else:
                             numerator = self.unk_model[bigram][w]
-                            denominator = self.denominator_gen(self.unk_model[bigram])
+                            denominator = denominator
                         l_numer = log(numerator, 2)
                         l_denom = log(denominator, 2)
                         self.unk_model[bigram][w] = l_numer - l_denom
@@ -635,10 +659,10 @@ class Ngram(LangModel):
                     for w in self.model[bigram].keys():
                         if self.smoothing:
                             numerator = self.model[bigram][w] + self.lamb
-                            denominator = self.denominator_gen(self.model[bigram]) + self.lamb * self.vocab_size
+                            denominator = self.denominator_gen(self.temp[bigram]) + self.lamb * self.vocab_size
                         else:
                             numerator = self.model[bigram][w]
-                            denominator = self.denominator_gen(self.model[bigram])
+                            denominator = self.denominator_gen(self.temp[bigram])
                         l_numer = log(numerator, 2)
                         l_denom = log(denominator, 2)
                         self.model[bigram][w] = l_numer - l_denom
@@ -745,12 +769,15 @@ class Ngram(LangModel):
         total = 0.0
         for key in dic.keys():
             total += dic[key]
+        if total < 0:
+            pdb.set_trace()
         return total
 
     def find_rare_words(self):
         for word in self.unigram_model:
             if self.unigram_model[word] < self.gamma:
                 self.rare_words.append(word)
+        self.rare_words = set(self.rare_words)
 
     def replace_with_UNK(self, sentence):
         return ['UNK' if x in self.rare_words else x for x in sentence]
