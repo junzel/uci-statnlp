@@ -509,6 +509,7 @@ class Ngram(LangModel):
         self.unigram_model = dict()
         self.unk_model = dict()
         # self.bigram_model=dict()
+        self.temp = dict()
         self.rare_words = list()
         self.lunk_prob = log(unk_prob, 2)
         self.lamb = 1.0 # for laplace smoothing
@@ -518,7 +519,7 @@ class Ngram(LangModel):
         self.vocab_cache = None
 
         self.smoothing = True
-        self.unk = False
+        self.unk = True
 
     def perplexity(self, corpus):
         """Computes the perplexity of the corpus by the model.
@@ -581,7 +582,7 @@ class Ngram(LangModel):
 
     def inc_word_mat(self, token):
         """Count the number of appearance of each word (macro word matrix)"""
-        previous = (token[-3], token[-2])
+        previous = (token[-2], token[-1])
         if previous in self.model:
             if token[-1] in self.model[previous]:
                 self.model[previous][token[-1]] += 1.0
@@ -638,6 +639,7 @@ class Ngram(LangModel):
         # The only part should work for now
         elif self.comb == 3:
             if self.unk:
+                pdb.set_trace()
                 for bigram in self.unk_model.keys():
                     denominator = self.denominator_gen(self.unk_model[bigram])
                     for w in self.unk_model[bigram].keys():
@@ -654,14 +656,13 @@ class Ngram(LangModel):
 
             else:
                 for bigram in self.model.keys():
-                    denominator = self.denominator_gen(self.model[bigram])
                     for w in self.model[bigram].keys():
                         if self.smoothing:
                             numerator = self.model[bigram][w] + self.lamb
-                            denominator = denominator + self.lamb * self.vocab_size
+                            denominator = self.denominator_gen(self.temp[bigram]) + self.lamb * self.vocab_size
                         else:
                             numerator = self.model[bigram][w]
-                            denominator = denominator
+                            denominator = self.denominator_gen(self.temp[bigram])
                         l_numer = log(numerator, 2)
                         l_denom = log(denominator, 2)
                         self.model[bigram][w] = l_numer - l_denom
@@ -675,6 +676,7 @@ class Ngram(LangModel):
         # assert numOOV != 0, "numOOV == 0!"
         # if numOOV == 0:
         #     pdb.set_trace()
+        pdb.set_trace()
         if self.unk:
             # check word and previous if needing unk
             if False:
