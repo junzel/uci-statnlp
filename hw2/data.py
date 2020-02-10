@@ -116,9 +116,9 @@ def learn_unigram(data):
     print("test :", unigram.perplexity(data.test))
     from generator import Sampler
     sampler = Sampler(unigram)
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
     return unigram
 
 def learn_bigram(data):
@@ -142,15 +142,25 @@ def learn_bigram(data):
     print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['START_OF_SENTENCE'])))
     return bigram
 
-def learn_ngram(data):
+def learn_ngram(data, hyperp_set={}):
     """Learns a unigram model from data.train.
 
     It also evaluates the model on data.dev and data.test, along with generating
     some sample sentences from the model.
     """
     from lm import Ngram
-    from lm import Ngram_baseline
-    ngram = Ngram(comb=3)
+    # from lm import Ngram_baseline
+    if hyperp_set == {}:
+        ngram = Ngram(comb=3)
+    else:
+        if list(hyperp_set.keys())[0] == 'lamb':
+            print(hyperp_set[list(hyperp_set.keys())[0]])
+            ngram = Ngram(comb=3, lamb=hyperp_set[list(hyperp_set.keys())[0]])
+        elif list(hyperp_set.keys())[0] == 'gamma':
+            ngram = Ngram(comb=3, gamma=hyperp_set[list(hyperp_set.keys())[0]])
+        else:
+            ngram = Ngram(comb=3)
+        
     ngram.fit_corpus(data.train)
     print("vocab:", len(ngram.vocab()))
     # evaluate on train, test, and dev
@@ -159,9 +169,9 @@ def learn_ngram(data):
     print("test :", ngram.perplexity(data.test))
     from generator import Sampler
     sampler = Sampler(ngram)
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
-    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence([])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
+    print("sample: ", " ".join(str(x) for x in sampler.sample_sentence(['The'])))
     return ngram
 
 def print_table(table, row_names, col_names, latex_file = None):
@@ -189,36 +199,90 @@ if __name__ == "__main__":
     # Do no run, the following function was used to generate the splits
     # file_splitter("data/reuters.txt")
 
-    dnames = ["brown", "reuters", "gutenberg"]
-    datas = []
-    models = []
-    # Learn the models for each of the domains, and evaluate it
-    for dname in dnames:
-        print("-----------------------")
-        print(dname)
-        data = read_texts("data/corpora.tar.gz", dname)
-        datas.append(data)
-        print('!!!!!---', dname, '---!!!!!')
-        model = learn_ngram(data)
-        models.append(model)
-    # compute the perplexity of all pairs
-    n = len(dnames)
-    perp_dev = np.zeros((n,n))
-    perp_test = np.zeros((n,n))
-    perp_train = np.zeros((n,n))
-    for i in range(n):
-        for j in range(n):
-            perp_dev[i][j] = models[i].perplexity(datas[j].dev)
-            perp_test[i][j] = models[i].perplexity(datas[j].test)
-            perp_train[i][j] = models[i].perplexity(datas[j].train)
+    # hyperp_set = {'lamb': [0.1, 0.5, 1.0, 2.0, 5.0]}
+    # hyperp_set = {'gamma': [2, 5, 10, 15, 20]}
+    hyperp_set = {}
 
-    print("-------------------------------")
-    print("x train")
-    print_table(perp_train, dnames, dnames, "table-train.tex")
-    print("-------------------------------")
-    print("x dev")
-    print_table(perp_dev, dnames, dnames, "table-dev.tex")
-    print("-------------------------------")
-    print("x test")
-    print_table(perp_test, dnames, dnames, "table-test.tex")
+    if hyperp_set == {}:
+        dnames = ["brown", "reuters", "gutenberg"]
+        datas = []
+        models = []
+        word_count = {}
+        # Learn the models for each of the domains, and evaluate it
+        for dname in dnames:
+            print("-----------------------")
+            print(dname)
+            data = read_texts("data/corpora.tar.gz", dname)
+            datas.append(data)
+            # model = learn_ngram(data, hyperp_set)
+            model = learn_unigram(data)
+            word_count[dname] = model.printout_model
+            models.append(model)
+        if True:
+            import pickle
+            with open('word_count.pkl', 'wb') as f:
+                pickle.dump(word_count, f)
+        
+        # compute the perplexity of all pairs
+        n = len(dnames)
+        perp_dev = np.zeros((n,n))
+        perp_test = np.zeros((n,n))
+        perp_train = np.zeros((n,n))
+        for i in range(n):
+            for j in range(n):
+                perp_dev[i][j] = models[i].perplexity(datas[j].dev)
+                perp_test[i][j] = models[i].perplexity(datas[j].test)
+                perp_train[i][j] = models[i].perplexity(datas[j].train)
 
+        print("-------------------------------")
+        print("x train")
+        print_table(perp_train, dnames, dnames, "table-train.tex")
+        print("-------------------------------")
+        print("x dev")
+        print_table(perp_dev, dnames, dnames, "table-dev.tex")
+        print("-------------------------------")
+        print("x test")
+        print_table(perp_test, dnames, dnames, "table-test.tex")
+    else:
+        results = {}
+        for hp in hyperp_set[list(hyperp_set.keys())[0]]:
+            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            print('                      '+list(hyperp_set.keys())[0]+str(hp)+'                       ')
+            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
+            dnames = ["brown", "reuters", "gutenberg"]
+            datas = []
+            models = []
+            # Learn the models for each of the domains, and evaluate it
+            for dname in dnames:
+                print("-----------------------")
+                print(dname)
+                data = read_texts("data/corpora.tar.gz", dname)
+                datas.append(data)
+                model = learn_ngram(data, {list(hyperp_set.keys())[0]: hp})
+                models.append(model)
+            # compute the perplexity of all pairs
+            n = len(dnames)
+            perp_dev = np.zeros((n,n))
+            perp_test = np.zeros((n,n))
+            perp_train = np.zeros((n,n))
+            for i in range(n):
+                for j in range(n):
+                    perp_dev[i][j] = models[i].perplexity(datas[j].dev)
+                    perp_test[i][j] = models[i].perplexity(datas[j].test)
+                    perp_train[i][j] = models[i].perplexity(datas[j].train)
+            results[list(hyperp_set.keys())[0]+str(hp)] = {'dev': perp_dev, 'test': perp_test, 'train': perp_train}
+
+            print("-------------------------------")
+            print("x train")
+            print_table(perp_train, dnames, dnames, list(hyperp_set.keys())[0]+str(hp)+"table-train.tex")
+            print("-------------------------------")
+            print("x dev")
+            print_table(perp_dev, dnames, dnames, list(hyperp_set.keys())[0]+str(hp)+"table-dev.tex")
+            print("-------------------------------")
+            print("x test")
+            print_table(perp_test, dnames, dnames, list(hyperp_set.keys())[0]+str(hp)+"table-test.tex")
+
+        import pickle
+        with open('results.pkl', 'wb') as f:
+            pickle.dump(results, f)

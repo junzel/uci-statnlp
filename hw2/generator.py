@@ -51,7 +51,7 @@ class Sampler:
         wps = []
         tot = -np.inf # this is the log (total mass)
         for w in self.lm.vocab():
-            if not incl_eos and w == "END_OF_SENTENCE":
+            if not incl_eos and w == "END_OF_SENTENCE" and w != 'UNK':
                 continue
             lp = self.lm.cond_logprob(w, prev, 0)
             wps.append([w, lp/self.temp])
