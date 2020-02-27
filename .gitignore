@@ -94,4 +94,5 @@ ENV/
 # Data files
 hw1/data/
 hw2/data/
-
+hw3/data/
+hw3/saved_models/
