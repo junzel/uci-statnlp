@@ -48,7 +48,7 @@ def run_viterbi(emission_scores, trans_scores, start_scores, end_scores):
     for j in range(L):
         R[N-1,j] += end_scores[j]
 
-    # Back propogation
+    # Back pointer
     # Get the last label of sequence
     y = [np.argmax(R[-1])]
     # Loop through all positions backwards
