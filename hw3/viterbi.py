@@ -25,39 +25,38 @@ def run_viterbi(emission_scores, trans_scores, start_scores, end_scores):
     assert emission_scores.shape[1] == L
     N = emission_scores.shape[0]
 
-    T = np.zeros((N, L)).astype(float)
-    T[:,:]= float('-inf')
+    # Initialize R and bp
     R = np.full((N, L), -np.inf)
-    assert T == R
+    bp = np.zeros((N, L)).astype(int)
+    # Initialize output sequence
+    y = [0] * N
 
-    back = np.zeros((N, L)).astype(int)
-
-    y = [0 for i in range(N)]
-
-    # Initialize with initial transitions. 
+    # Added scores starting from <s>. 
     for i in range(L):
-        T[0, i] = start_scores[i] + emission_scores[0][i]
+        R[0, i] = start_scores[i] + emission_scores[0][i]
 
-    # Recursion step
+    # Iterative Computation (forward)
     for i in range(1, N):
         for j in range(L):
-            for j0 in range(L):
-                score = T[i-1][j0] + trans_scores[j0][j] + emission_scores[i,j]
-                if score > T[i,j]:
-                    T[i,j] = score
-                    back[i,j] = j0
+            for j_pre in range(L): # Loop through preceding labels
+                score = R[i-1][j_pre] + trans_scores[j_pre][j] + emission_scores[i,j]
+                if score > R[i,j]:
+                    R[i,j] = score
+                    bp[i,j] = j_pre
 
-    # Add in the end scores
+    # Add scores of <e>
     for j in range(L):
-        T[N-1,j] += end_scores[j]
+        R[N-1,j] += end_scores[j]
 
-    pdb.set_trace()
-    # Backtrack
-    y = [np.argmax(T[-1])]
-    for i in range(N-1, 0, -1):
-        y.append(back[i, y[-1]])
+    # Back propogation
+    # Get the last label of sequence
+    y = [np.argmax(R[-1])]
+    # Loop through all positions backwards
+    for i in reversed(range(1, N)):
+        y.append(bp[i, y[-1]])
 
-    return (np.amax(T[-1]), y[::-1])
+    # Output the largest final score and the sequence (y is backwards, needs to be reversed)
+    return (np.max(R[-1]), list(reversed(y)))
 
     # y = []
     # for i in range(N):
