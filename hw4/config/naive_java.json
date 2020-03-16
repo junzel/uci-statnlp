@@ -78,6 +78,6 @@
     },
     "num_epochs": 50,
     "validation_metric": "+BLEU",
-    "cuda_device": -1
+    "cuda_device": 0
   }
 }
